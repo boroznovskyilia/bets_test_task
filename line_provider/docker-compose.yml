@@ -1,0 +1,44 @@
+version: '3.9'
+services:
+  line_provider_db:
+    container_name: line_provider_db
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=${DB__USER}
+      - POSTGRES_PASSWORD=${DB__PASSWORD}
+      - POSTGRES_DB=${DB__NAME}
+      - PGPORT=${DB__PORT}
+    ports:
+      - '15434:${DB__PORT}'
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB__USER}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - line_provider_db:/var/lib/postgresql/data
+
+  line_provider:
+    build: .
+    environment:
+      - APP__HOST=${APP__HOST}
+      - APP__PORT=${APP__PORT}
+    ports:
+      - '8081:${APP__PORT}'
+    depends_on:
+      line_provider_db:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - default      
+      - shared_network
+  
+volumes:
+  line_provider_db:
+
+networks:
+  default:
+    driver: bridge
+  shared_network:
+    external: true

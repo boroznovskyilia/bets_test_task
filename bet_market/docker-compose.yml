@@ -1,0 +1,80 @@
+version: '3.9'
+services:
+  bet_market_db:
+    container_name: bet_market_db
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=${DB__USER}
+      - POSTGRES_PASSWORD=${DB__PASSWORD}
+      - POSTGRES_DB=${DB__NAME}
+    ports:
+      - '15433:${DB__PORT}'
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB__USER}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - bet_market_db:/var/lib/postgresql/data
+    
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+  
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s    
+      timeout: 10s     
+      retries: 5 
+      start_period: 10s
+    ports:
+      - "5672:${RABBITMQ__PORT}" 
+      - "15672:${RABBITMQ__MANAGEMENT_PORT}"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ__USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ__PASSWORD}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - default      
+      - shared_network
+
+  bet_market:
+    build: .
+    environment:
+      - APP__HOST=${APP__HOST}
+      - APP__PORT=${APP__PORT}
+    ports:
+      - '8080:${APP__PORT}'
+    depends_on:
+      bet_market_db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - default
+      - shared_network
+  
+volumes:
+  bet_market_db:
+  rabbitmq_data:
+
+networks:
+  default:
+    driver: bridge
+  shared_network:
+    external: true
